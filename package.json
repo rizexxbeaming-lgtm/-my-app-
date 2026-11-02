@@ -14,7 +14,7 @@
     "bot": "tsx src/bot.ts"
   },
   "dependencies": {
-    "@ton/core": "^0.60.0",
+    "@ton/core": "^0.63.0",
     "@ton/crypto": "^3.3.0",
     "@ton/ton": "^15.2.0",
     "dotenv": "^16.4.5"

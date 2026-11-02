@@ -1,0 +1,7 @@
+{
+  "network": "testnet",
+  "relayAddress": "PASTE_FROM_lab-config.json",
+  "walletA": "PASTE_VICTIM_W5_ADDRESS",
+  "walletB": "PASTE_RECEIVER_ADDRESS",
+  "drainAmount": "0.1"
+}

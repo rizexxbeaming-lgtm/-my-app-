@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>W5 — Trigger (без подписи A)</title>
+  <script src="https://unpkg.com/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; }
+    code { background: #eee; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+    button { padding: 0.6rem 1rem; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Step 2 — списание без подписи A</h1>
+  <p>Connect любым кошельком с gas → сообщение на <strong>relay</strong>.</p>
+  <p>Relay: <code id="relay">…</code></p>
+  <div id="ton-connect"></div>
+  <button id="go" disabled>Списать через extension</button>
+  <p id="status"></p>
+  <p><a href="install.html">← Install extension</a></p>
+
+  <script type="module">
+    const status = document.getElementById("status");
+    const relayEl = document.getElementById("relay");
+    const go = document.getElementById("go");
+
+    let relay = "";
+    try {
+      const cfg = await (await fetch("./config.json")).json();
+      relay = cfg.relayAddress || "";
+      relayEl.textContent = relay || "(config.json)";
+      if (relay) go.disabled = false;
+    } catch {
+      relayEl.textContent = "нет config.json";
+    }
+
+    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+      manifestUrl: new URL("./tonconnect-manifest.json", window.location.href).toString(),
+      buttonRootId: "ton-connect",
+    });
+
+    go.onclick = async () => {
+      if (!relay) return;
+      status.textContent = "Confirm в Tonkeeper (gas на relay)…";
+      try {
+        await tonConnectUI.sendTransaction({
+          validUntil: Math.floor(Date.now() / 1000) + 600,
+          messages: [{ address: relay, amount: "80000000" }],
+        });
+        status.textContent = "OK — проверь баланс wallet B через ~30s";
+      } catch (e) {
+        status.textContent = e?.message || "cancelled";
+      }
+    };
+  </script>
+</body>
+</html>

