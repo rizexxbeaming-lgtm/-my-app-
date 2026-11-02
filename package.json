@@ -1,0 +1,30 @@
+{
+  "name": "w5-extension-lab",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "tsx src/deploy-relay.ts && node scripts/sync-config-from-lab.mjs",
+    "install-ext": "tsx src/install-extension.ts",
+    "trigger": "tsx src/trigger.ts",
+    "remove-ext": "tsx src/remove-extension.ts",
+    "sync-config": "node scripts/sync-config-from-lab.mjs",
+    "manifest:local": "node scripts/prepare-manifest.mjs http://127.0.0.1:8080",
+    "serve:public": "npx --yes serve public -p 8080",
+    "diag": "tsx src/diagnostics.ts",
+    "bot": "tsx src/bot.ts"
+  },
+  "dependencies": {
+    "@ton/core": "^0.60.0",
+    "@ton/crypto": "^3.3.0",
+    "@ton/ton": "^15.2.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@ton-community/func-js": "^0.6.3",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

@@ -1,0 +1,31 @@
+#include "stdlib.fc";
+
+;; data: trusted_w5:MsgAddressInt, inner_request:^Cell
+;; Trigger: send internal to trusted_w5 with internal_extension body.
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    cell data = get_data();
+    slice ds = data.begin_parse();
+    slice trusted_w5 = ds~load_msg_addr();
+    cell inner = ds~load_ref();
+
+    cell ext_body = begin_cell()
+        .store_uint(0x6578746e, 32)
+        .store_uint(now(), 64)
+        .store_slice(inner.begin_parse())
+        .end_cell();
+
+    int forward = msg_value;
+    if (forward < 50000000) {
+        forward = 50000000;
+    }
+
+    var msg = begin_cell()
+        .store_uint(0x18, 6)
+        .store_slice(trusted_w5)
+        .store_coins(forward)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .store_ref(ext_body);
+
+    send_raw_message(msg.end_cell(), 1);
+}
